@@ -1,0 +1,75 @@
+clc;
+clear;
+tic
+% data_fname ='hole_radius1.fmc';
+data_fname ='rect_agnle45_size1.5_0.3.fmc';
+jump_distance = 12; 
+file_id = fopen(data_fname, 'rb');
+fseek(file_id, jump_distance, 'bof');
+[array, ele_count] = fread(file_id, 'float');
+fclose(file_id); 
+FMCData=zeros(64,64,6000);
+m=0;
+for i=1:64
+    for j=1:64
+        for k=1:6000
+            m=m+1;
+            FMCData(i,j,k)=array(m);
+        end
+    end
+end
+
+HFMCData=zeros(size(FMCData));
+N=64;
+Nt=length(FMCData);
+for i=1:N
+    for j=1:N
+        HFMCData(i,j,:)=hilbert(FMCData(i,j,:));
+    end
+end
+%希尔伯特变换后得到的是换能器排列空间上的接收到的复数信号
+
+Rate=2.0e+8;
+vc=5200;
+Nx = 500;
+Nz = 500;
+X0 = 0e-3;
+Z0 = 0e-3;
+dx = 50/500*1e-3;
+dz = 50/500*1e-3;
+d = 0.6e-3;
+h = 0;
+Xt=(0:N-1)*d+0.5*d;
+Zt=zeros(size(Xt));
+Xs1D=(0:Nx-1)*dx;
+Zs1D=(0:Nz-1)*dz;
+Xs=repmat(Xs1D,Nz,1);
+Zs=repmat(Zs1D',1,Nx);
+FocalLaw=zeros(Nx,Nz,N);
+for k=1:N
+    x0=Xt(k);
+    z0=Zt(k);
+    for i=1:Nx
+        x1=Xs1D(i);
+        for j=1:Nz
+            z1=Zs1D(j);
+            time = sqrt((x0 - x1)^2 + (z0 - z1)^2) / vc;
+            FocalLaw(i, j, k) = Rate*time;
+        end
+    end
+end
+
+I=zeros(Nx,Nz);
+for u = 1 : N
+    for v = 1 : N
+        tind = round((FocalLaw(:, :,u) + FocalLaw(:, :,v))) + 1;
+        ascan = squeeze(HFMCData(u, v, :));
+        I = I + ascan(tind);
+    end
+end
+I=abs(I');
+I=I/max(I(:));
+I=20*log10(I);
+imagesc(I,[-20,0]);
+colormap('jet');
+toc;
